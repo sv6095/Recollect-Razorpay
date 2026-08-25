@@ -1,9 +1,11 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
+_ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_PATH, extra="ignore")
 
     # Groq
     groq_api_key: str = ""
@@ -20,8 +22,8 @@ class Settings(BaseSettings):
     database_url: str = "recollect.db"
 
     # App
-    app_env: str = "development"
-    demo_mode: bool = True
+    app_env: str = "production"
+    demo_mode: bool = False
 
     # Twilio (optional)
     twilio_account_sid: str = ""
@@ -29,8 +31,8 @@ class Settings(BaseSettings):
     twilio_whatsapp_from: str = "whatsapp:+14155238886"
 
     # Agent models
-    triage_model: str = "llama-3.3-70b-versatile"
-    reasoning_model: str = "llama-3.3-70b-versatile"
+    triage_model: str = "openai/gpt-oss-20b"
+    reasoning_model: str = "openai/gpt-oss-20b"
 
     # Policy Gate thresholds
     max_contacts_per_24h: int = 2
