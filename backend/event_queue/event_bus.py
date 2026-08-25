@@ -10,9 +10,16 @@ queue_sentinel: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
 # In-memory broadcast queue for WebSocket push (when Redis pub/sub not available)
 _ws_broadcast_queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
+_broadcast_handlers: list[Callable[[dict], Awaitable[None]]] = []
 
 # Active worker tasks
 _workers: list[asyncio.Task] = []
+
+
+def register_broadcast_handler(handler: Callable[[dict], Awaitable[None]]) -> None:
+    """Register a callback (e.g. WebSocket fan-out) to receive all broadcast events immediately."""
+    if handler not in _broadcast_handlers:
+        _broadcast_handlers.append(handler)
 
 
 def route_to_queue(txn: Transaction) -> asyncio.Queue:
@@ -35,11 +42,17 @@ async def enqueue(txn: Transaction) -> None:
 
 
 async def broadcast_event(event: dict) -> None:
-    """Push an event to the in-memory WebSocket broadcast queue."""
+    """Push an event to registered broadcast handlers and the in-memory queue."""
     try:
         _ws_broadcast_queue.put_nowait(event)
     except asyncio.QueueFull:
         pass  # Drop if full — dashboard is best-effort
+
+    for handler in list(_broadcast_handlers):
+        try:
+            await handler(event)
+        except Exception:
+            pass
 
 
 async def get_broadcast_event() -> dict:
