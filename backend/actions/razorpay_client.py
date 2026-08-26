@@ -75,7 +75,7 @@ async def create_payment_link(txn: Transaction, proposal: RecoveryProposal) -> d
             logger.error(f"[Razorpay] Failed to create link: {e}")
             return _simulated_link(txn)
     else:
-        # Demo simulation
+        # Fallback simulation when API client not initialized
         return _simulated_link(txn)
 
 
@@ -86,7 +86,7 @@ def _expire_timestamp() -> int:
 
 
 def _simulated_link(txn: Transaction) -> dict:
-    """Realistic simulated Razorpay payment link for demo mode."""
+    """Simulated Razorpay payment link fallback."""
     link_id = f"plink_sim_{txn.transaction_id[:12]}"
     return {
         "id": link_id,
