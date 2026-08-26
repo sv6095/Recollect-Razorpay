@@ -532,17 +532,9 @@ async def razorpay_webhook(request: Request) -> JSONResponse:
                 f"signature={signature!r} — Check RAZORPAY_WEBHOOK_SECRET."
             )
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
-    elif settings.demo_mode:
-        # Local dev: bypass signature check but warn loudly
-        logger.warning(
-            "[Webhook] DEMO_MODE=true — signature verification SKIPPED. "
-            "Set RAZORPAY_WEBHOOK_SECRET before going to production."
-        )
     else:
-        # Production with no secret = configuration error
         logger.error(
-            "[Webhook] RAZORPAY_WEBHOOK_SECRET not set in production mode. Rejecting request."
+            "[Webhook] RAZORPAY_WEBHOOK_SECRET not configured. Rejecting request."
         )
         raise HTTPException(
             status_code=500,
