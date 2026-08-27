@@ -22,6 +22,6 @@ async def record_ptp(txn: Transaction, amount: float, due_date: str,
 
 
 async def mark_paid(txn_id: str, amount_recovered: float) -> None:
-    """Mark a PTP as paid (called by Razorpay webhook or demo button)."""
+    """Mark a PTP as paid (called by Razorpay webhook or recovery link payment)."""
     await db.mark_recovered(txn_id, amount_recovered)
     logger.info(f"[PTP] ₹{amount_recovered:,.0f} recovered for {txn_id}")
