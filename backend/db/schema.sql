@@ -100,6 +100,21 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     status TEXT DEFAULT 'processed'    -- processed | duplicate | failed | skipped
 );
 
+-- Message log for agent chat / WhatsApp / email / voice transcripts
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    transaction_id TEXT NOT NULL,
+    merchant_id TEXT NOT NULL,
+    direction TEXT NOT NULL,           -- outbound | inbound | system
+    channel TEXT NOT NULL,             -- WHATSAPP | EMAIL | VOICE | SMS | RETRY | INTERNAL
+    sender TEXT,                       -- agent_id | "customer" | "system"
+    content TEXT NOT NULL,
+    status TEXT DEFAULT 'queued',      -- queued | sent | delivered | read | failed
+    metadata TEXT DEFAULT '{}',        -- JSON: sid, delivery_receipts, waveform, etc.
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+
 -- Aggregate stats view for the dashboard header counters
 CREATE VIEW IF NOT EXISTS recovery_stats AS
 SELECT
