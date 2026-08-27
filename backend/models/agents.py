@@ -57,3 +57,9 @@ class GateResult(BaseModel):
     passed: bool
     abort_reason: Optional[AbortReason] = None
     details: str = ""
+    trai_calling_window: str = "Active (08:00 - 19:00 IST)"
+    velocity_limit: str = "0 / 2 contacts in 24h"
+    dnd_status: str = "Clear (NDNC check passed)"
+    consent_status: str = "Verified opt-in consent on record"
+    unit_economics: str = "Expected recovery exceeds outreach cost"
+
