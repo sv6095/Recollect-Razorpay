@@ -308,7 +308,7 @@ razorpayh/
 │   │   ├── webhook.py             # Razorpay production webhook handler (HMAC verified)
 │   │   └── websocket.py           # Real-time WebSocket broadcasting room
 │   ├── data/                      # Demo seed transactions & merchant RAG catalog
-│   │   ├── demo_transactions.csv  # 45 pre-staged + 5 live test transactions
+│   │   ├── demo_transactions.csv  # 5 curated seed transactions across pipeline categories
 │   │   └── merchant_catalog.json  # Merchant products & FAQs for cart agent RAG
 │   ├── db/                        # SQLite persistence layer
 │   │   └── database.py            # Asynchronous aiosqlite schemas & queries
@@ -460,12 +460,48 @@ Then start the frontend locally with `npm run dev` in `frontend/`.
 
 ---
 
+### 🚀 Fast Track: One-Click Dev Launcher (Backend + Frontend + Dual Zrok Tunnels)
+
+To automatically launch the FastAPI backend, Next.js frontend, and expose both through **dedicated, persistent reserved names** in one command:
+
+```powershell
+# Start everything with separate persistent shares:
+#   Frontend (:3000) -> https://vw5izkdjk7p5.shares.zrok.io
+#   Backend  (:8000) -> https://nbuimbnbcdwy.shares.zrok.io
+.\start-all.ps1
+
+# Or double-click start.bat in Windows Explorer:
+start.bat
+```
+
+**Advanced Usage & Custom Reserved Names:**
+```powershell
+# Reserve brand-new custom names for frontend & backend:
+.\start-all.ps1 -CreateFrontendName "my-app-ui" -CreateBackendName "my-app-api"
+
+# Use existing reserved names:
+.\start-all.ps1 -FrontendName "vw5izkdjk7p5" -BackendName "nbuimbnbcdwy"
+
+# Run locally only (no zrok tunnel):
+.\start-all.ps1 -NoZrok
+
+# Automatically terminate existing processes on port 8000/3000 before launching:
+.\start-all.ps1 -ForceRestart
+
+# Stop all running services (FastAPI, Next.js, and both zrok2 tunnels):
+.\stop-all.ps1
+```
+
+Once running, press **`[Q]`** or **`[Ctrl+C]`** in the launcher window to gracefully stop all services simultaneously.
+
+---
+
 ## ⚡ Testing & Webhook Simulation
 
 ### Option A: Interactive Live Demo (One-Click)
 The console includes a pre-packaged simulation suite:
 1. Open the Executive Console in your browser (`http://127.0.0.1:3000`).
-2. Click **"Reset Demo Data"** in the top navigation bar to populate 45 historical baseline transactions into the database.
+2. Click **"Reset Demo Data"** in the top navigation bar to populate 5 historical baseline transactions across different categories into the database.
 3. Click **"Trigger Webhooks"** to fire real-time synthetic Razorpay failure events for the 5 live demo scenarios:
    - **Scenario 1 (Category A)**: Subscriptions insufficient funds $\to$ Sequenced to salary day with 24h RBI e-Mandate notification.
    - **Scenario 2 (Category B)**: B2B dispute detection $\to$ Escalated with Partial Payment Link.
