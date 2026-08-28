@@ -10,9 +10,11 @@ settings = get_settings()
 
 # Strip SQLAlchemy URL prefix if present
 _raw_url = settings.database_url
-DB_PATH = _raw_url.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
-if not DB_PATH:
-    DB_PATH = "recollect.db"
+_extracted = _raw_url.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "") or "recollect.db"
+if not os.path.isabs(_extracted):
+    DB_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", _extracted))
+else:
+    DB_PATH = _extracted
 
 # Module-level connection (set during lifespan)
 _db: Optional[aiosqlite.Connection] = None
@@ -102,11 +104,19 @@ async def get_transaction(txn_id: str) -> Optional[dict]:
         return dict(row) if row else None
 
 
-async def get_all_transactions(merchant_id: str = "merchant_001") -> List[dict]:
+async def get_all_transactions(merchant_id: Optional[str] = None) -> List[dict]:
     db = await get_db()
+    if merchant_id:
+        async with db.execute(
+            "SELECT * FROM transactions WHERE merchant_id=? ORDER BY created_at DESC",
+            (merchant_id,)
+        ) as cur:
+            rows = await cur.fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+
     async with db.execute(
-        "SELECT * FROM transactions WHERE merchant_id=? ORDER BY created_at DESC",
-        (merchant_id,)
+        "SELECT * FROM transactions ORDER BY created_at DESC"
     ) as cur:
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
@@ -233,27 +243,55 @@ async def create_escalation(txn_id: str, merchant_id: str, customer_id: str,
     return esc_id
 
 
-async def get_escalations(merchant_id: str = "merchant_001") -> List[dict]:
+async def get_escalations(merchant_id: Optional[str] = None) -> List[dict]:
     db = await get_db()
+    if merchant_id:
+        async with db.execute(
+            "SELECT * FROM escalations WHERE merchant_id=? ORDER BY created_at DESC",
+            (merchant_id,)
+        ) as cur:
+            rows = await cur.fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+
     async with db.execute(
-        "SELECT * FROM escalations WHERE merchant_id=? ORDER BY created_at DESC",
-        (merchant_id,)
+        "SELECT * FROM escalations ORDER BY created_at DESC"
     ) as cur:
         return [dict(r) for r in await cur.fetchall()]
 
 
 # ─── Stats ───────────────────────────────────────────────────────────────────
 
-async def get_stats(merchant_id: str = "merchant_001") -> dict:
+async def get_stats(merchant_id: Optional[str] = None) -> dict:
     db = await get_db()
+    if merchant_id:
+        async with db.execute(
+            "SELECT * FROM recovery_stats WHERE merchant_id=?", (merchant_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            if row:
+                return dict(row)
+
+    # Aggregate across all real transactions in DB
     async with db.execute(
-        "SELECT * FROM recovery_stats WHERE merchant_id=?", (merchant_id,)
+        """
+        SELECT
+            COALESCE(merchant_id, 'all') as merchant_id,
+            COUNT(*) as total_transactions,
+            COALESCE(SUM(amount), 0.0) as total_at_risk,
+            COALESCE(SUM(CASE WHEN state = 'RECOVERED' THEN amount ELSE 0 END), 0.0) as total_recovered,
+            COUNT(CASE WHEN state = 'RECOVERED' THEN 1 END) as count_recovered,
+            COUNT(CASE WHEN state = 'ABORTED' THEN 1 END) as count_aborted,
+            COUNT(CASE WHEN state = 'WRITTEN_OFF' THEN 1 END) as count_written_off,
+            COUNT(CASE WHEN state = 'ESCALATED' THEN 1 END) as count_escalated
+        FROM transactions
+        """
     ) as cur:
         row = await cur.fetchone()
-        if row:
+        if row and row["total_transactions"] > 0:
             return dict(row)
         return {
-            "merchant_id": merchant_id,
+            "merchant_id": merchant_id or "all",
             "total_transactions": 0,
             "total_at_risk": 0.0,
             "total_recovered": 0.0,
