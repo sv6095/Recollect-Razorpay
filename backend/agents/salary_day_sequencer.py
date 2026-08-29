@@ -69,7 +69,7 @@ Draft the recovery plan with the appropriate retry date and RBI pre-debit notifi
         result = await self.chat_json(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
-            max_tokens=400,
+            max_tokens=2048,
             temperature=0.1,
         )
 
