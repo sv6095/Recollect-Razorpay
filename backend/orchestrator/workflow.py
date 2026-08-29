@@ -150,6 +150,13 @@ async def process_transaction(txn: Transaction) -> None:
         await _abort(txn, gate_result.abort_reason, gate_result.details, "PolicyGate")
         return
 
+    # Broadcast successful Policy Gate audit event
+    await event_bus.broadcast_event(_build_audit_event(
+        txn, "audit_row",
+        "Policy Gate passed — DND clear, calling window active, velocity limit OK",
+        "PolicyGate", {"outcome": "policy_passed", "details": gate_result.details}
+    ))
+
     # ── Step 3: Triage ────────────────────────────────────────────────────────
     await _transition(txn, TransactionState.TRIAGED, "TriageAgent", "Running AI triage classification")
 
@@ -209,6 +216,13 @@ async def process_transaction(txn: Transaction) -> None:
     await db.record_decision(txn.transaction_id, txn.merchant_id, proposal.agent,
                               "Recovery intervention plan", proposal.model_dump())
 
+    # Broadcast specialist intervention plan event
+    await event_bus.broadcast_event(_build_audit_event(
+        txn, "audit_row",
+        f"{proposal.agent} formulated recovery plan: {proposal.action} — {proposal.reasoning[:120]}",
+        proposal.agent, {"outcome": "intervention_planned", "proposal": proposal.model_dump()}
+    ))
+
     # ── Step 5: Semantic Risk Gate ────────────────────────────────────────────
     risk_agent = get_risk_agent()
     risk_verdict = await risk_agent.evaluate(txn, proposal)
@@ -227,6 +241,16 @@ async def process_transaction(txn: Transaction) -> None:
                          f"Sentiment circuit breaker tripped — {risk_verdict.reason_code}. Customer tagged DND.",
                          "RiskAgent")
         return
+
+    # Broadcast successful Risk Gate verification
+    await event_bus.broadcast_event(_build_audit_event(
+        txn, "audit_row",
+        f"Risk guardrail verified — {risk_verdict.reason_code or 'clean tone'}. Suggested: {risk_verdict.suggested_action}",
+        "RiskAgent", {
+            "outcome": "risk_verified",
+            "risk_verdict": risk_verdict.model_dump(),
+        }
+    ))
 
     arbiter_ruling: ArbiterRuling | None = None
 
@@ -285,6 +309,19 @@ async def process_transaction(txn: Transaction) -> None:
     await send_message(txn, proposal.channel if hasattr(proposal.channel, 'value') else Channel.NONE,
                         msg_with_link)
 
+    await db.record_decision(
+        txn.transaction_id, txn.merchant_id, proposal.agent,
+        f"Outreach dispatched via {proposal.channel.value if hasattr(proposal.channel, 'value') else proposal.channel}",
+        {
+            "action": proposal.action,
+            "channel": proposal.channel.value if hasattr(proposal.channel, 'value') else str(proposal.channel),
+            "message_preview": msg_with_link[:200],
+            "payment_link_url": txn.payment_link_url or "",
+            "status": "dispatched",
+            "reasoning": proposal.reasoning,
+        }
+    )
+
     await event_bus.broadcast_event(_build_audit_event(
         txn, "audit_row",
         f"{proposal.action} executed via {proposal.channel.value if hasattr(proposal.channel, 'value') else proposal.channel} — {proposal.reasoning[:150]}",
@@ -306,6 +343,18 @@ async def process_transaction(txn: Transaction) -> None:
         await _transition(txn, TransactionState.PTP_LOGGED, proposal.agent,
                            f"PTP logged — ₹{proposal.ptp_amount:,.0f} due {ptp_due}")
 
+        await db.record_decision(
+            txn.transaction_id, txn.merchant_id, proposal.agent,
+            f"Promise-to-Pay registered — ₹{proposal.ptp_amount:,.0f} due {ptp_due}",
+            {
+                "action": "log_ptp",
+                "ptp_amount": proposal.ptp_amount,
+                "due_date": ptp_due,
+                "payment_link_url": txn.payment_link_url or "",
+                "status": "ptp_logged",
+            }
+        )
+
         await event_bus.broadcast_event(_build_audit_event(
             txn, "audit_row",
             f"₹{proposal.ptp_amount:,.0f} split payment agreed — link generated, PTP logged",
@@ -317,6 +366,18 @@ async def process_transaction(txn: Transaction) -> None:
         await _transition(txn, TransactionState.RECOVERED, proposal.agent,
                            "Retry scheduled — marking as recovery in progress")
         await db.mark_recovered(txn.transaction_id, txn.amount)
+
+        await db.record_decision(
+            txn.transaction_id, txn.merchant_id, proposal.agent,
+            f"Recovery scheduled — RBI pre-debit advisory dispatched. Auto-retry on {proposal.retry_date}",
+            {
+                "action": "schedule_retry",
+                "retry_date": proposal.retry_date or "",
+                "rbi_notification_sent": proposal.rbi_notification_sent,
+                "recovered_amount": txn.amount,
+                "status": "recovered",
+            }
+        )
 
         await event_bus.broadcast_event(_build_audit_event(
             txn, "audit_row",
