@@ -58,32 +58,38 @@ Draft the collection email and extract any dispute information."""
         result = await self.chat_json(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
-            max_tokens=1024,
+            max_tokens=2048,
             temperature=0.2,
         )
 
-        # Extract dispute object
+        # Extract dispute object with fallback to transaction extra data
         dispute_data = result.get("dispute", {})
+        has_extra_dispute = bool(txn.extra.get("dispute_reason"))
         dispute = DisputeObject(
-            disputed=dispute_data.get("disputed", False),
-            reason_code=dispute_data.get("reason_code", ""),
-            evidence_summary=dispute_data.get("evidence_summary", ""),
+            disputed=dispute_data.get("disputed", has_extra_dispute),
+            reason_code=dispute_data.get("reason_code") or (txn.extra.get("dispute_reason") if has_extra_dispute else ""),
+            evidence_summary=dispute_data.get("evidence_summary") or (f"Dispute noted on invoice: {txn.extra.get('dispute_reason')}" if has_extra_dispute else ""),
         )
 
-        ptp_amount = float(result.get("ptp_amount", txn.amount))
+        ptp_amount = float(result.get("ptp_amount", txn.amount * 0.5 if dispute.disputed else txn.amount))
         from datetime import datetime, timedelta
         default_due = (datetime.utcnow() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+        reasoning = result.get("reasoning") or (
+            f"B2B collection initiated. Formulated Razorpay Partial Payment Link for ₹{ptp_amount:,.0f}."
+            + (f" Dispute detected ({dispute.reason_code}); flagging for Arbiter review." if dispute.disputed else "")
+        )
 
         return RecoveryProposal(
             transaction_id=txn.transaction_id,
             agent="B2BDebtChaser",
             action=result.get("action", "send_email"),
-            message=result.get("email_body", "Please clear your outstanding invoice."),
+            message=result.get("email_body") or f"Dear {txn.customer_name},\n\nWe would like to remind you that invoice payment of ₹{txn.amount:,.0f} is pending. Please use the attached Razorpay link to proceed with milestone settlement:\n\n[PAYMENT_LINK]",
             channel=Channel.EMAIL,
             ptp_amount=ptp_amount,
             ptp_due_date=result.get("ptp_due_date", default_due),
             dispute=dispute,
-            reasoning=result.get("reasoning", ""),
+            reasoning=reasoning,
         )
 
 
