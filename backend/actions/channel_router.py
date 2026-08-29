@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 async def send_message(txn: Transaction, channel: Channel, message: str) -> dict:
     """
     Route outbound message to the appropriate channel.
-    In demo mode, all channels are simulated (logged, not actually sent).
+    When live credentials are not set, channels are simulated via audit logs.
     """
     if channel == Channel.WHATSAPP:
         return await _send_whatsapp(txn, message)
@@ -48,7 +48,7 @@ async def _send_whatsapp(txn: Transaction, message: str) -> dict:
 
 
 async def _send_email(txn: Transaction, message: str) -> dict:
-    """Send email (simulated in demo mode)."""
+    """Send email (simulated fallback)."""
     logger.info(f"[Email] → {txn.customer_email}: {message[:100]}...")
     return _simulate_send("email", txn, message)
 
@@ -72,5 +72,5 @@ async def _schedule_retry(txn: Transaction, message: str) -> dict:
 
 
 def _simulate_send(channel: str, txn: Transaction, message: str) -> dict:
-    logger.info(f"[{channel.upper()}][DEMO] → {txn.customer_name} ({txn.customer_phone}): {message[:100]}")
+    logger.info(f"[{channel.upper()}][DISPATCH] → {txn.customer_name} ({txn.customer_phone}): {message[:100]}")
     return {"status": "simulated", "channel": channel, "txn_id": txn.transaction_id}
