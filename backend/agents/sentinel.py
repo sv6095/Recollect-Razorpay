@@ -48,20 +48,27 @@ Draft a friendly preemptive alert to help the customer prepare for this renewal.
         result = await self.chat_json(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
-            max_tokens=400,
+            max_tokens=2048,
             temperature=0.25,
         )
 
         channel_map = {"WHATSAPP": Channel.WHATSAPP, "EMAIL": Channel.EMAIL}
         channel = channel_map.get(result.get("channel", "WHATSAPP"), Channel.WHATSAPP)
+        message = result.get("message") or (
+            f"Hi {txn.customer_name}! Your upcoming ₹{txn.amount:,.0f} subscription renews in 48h. "
+            f"Tap here to update your card or ensure liquidity: [PAYMENT_LINK] 👍"
+        )
+        reasoning = result.get("reasoning") or (
+            "Preemptive renewal telemetry detected potential decline risk; issued proactive payment method update link."
+        )
 
         return RecoveryProposal(
             transaction_id=txn.transaction_id,
             agent="SentinelAgent",
             action=result.get("action", "send_preemptive_alert"),
-            message=result.get("message", f"Your ₹{txn.amount:.0f} renewal is in 2 days. Tap to update payment method."),
+            message=message,
             channel=channel,
-            reasoning=result.get("reasoning", "Preemptive intervention before failure."),
+            reasoning=reasoning,
         )
 
 
