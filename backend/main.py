@@ -11,8 +11,9 @@ from state.redis_store import init_redis, close_redis
 from agents.base import init_groq_client
 from event_queue.event_bus import start_workers, stop_workers
 from orchestrator.workflow import process_transaction
+from seed import seed_if_empty
 from api.ingest import router as ingest_router
-from api.demo import router as demo_router
+from api.recovery import router as recovery_router
 from api.websocket import router as ws_router
 from api.webhook import router as webhook_router
 
@@ -49,6 +50,9 @@ async def lifespan(app: FastAPI):
     await start_workers(process_transaction, workers_per_queue=2)
     logger.info("✅ Worker pool started (4 categories × 2 workers = 8 workers)")
 
+    # 5. Seed demo data in background task so server becomes healthy immediately
+    asyncio.create_task(seed_if_empty(stagger_seconds=0.3))
+
     yield
 
     # Graceful shutdown
@@ -76,7 +80,8 @@ app.add_middleware(
 
 # API routers
 app.include_router(ingest_router)
-app.include_router(demo_router)
+app.include_router(recovery_router, prefix="/api")
+app.include_router(recovery_router, prefix="/api/demo")  # Compatibility alias
 app.include_router(ws_router)
 app.include_router(webhook_router)   # POST /api/webhooks/razorpay
 
