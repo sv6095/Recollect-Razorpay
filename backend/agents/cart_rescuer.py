@@ -56,7 +56,6 @@ You MUST return valid JSON:
 Hinglish style guide:
 - Mix Hindi and English naturally: "Aapka cart mein ₹X ka order hai..."
 - Use "aap" (respectful you), not "tum"
-- Emoji sparingly: 🛒 ✨ ⚡ are fine
 - Sound like a helpful friend, not a robot
 - Mention the 5% discount clearly with a sense of urgency ("sirf 24 ghante ke liye")
 - End with a direct call to action
@@ -92,18 +91,27 @@ Draft a Hinglish WhatsApp message to recover this cart with a 5% time-boxed disc
         result = await self.chat_json(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
-            max_tokens=512,
+            max_tokens=2048,
             temperature=0.3,  # Slightly higher for creative Hinglish writing
+        )
+
+        product = txn.extra.get("product_name", "items in your cart")
+        message = result.get("whatsapp_message") or (
+            f"Namaste {txn.customer_name}! Aapka cart mein ₹{txn.amount:,.0f} ka {product} wait kar raha hai. 🛒 "
+            f"Aaj order complete karein aur paayein exclusive 5% discount (valid 24h). Link: [PAYMENT_LINK]"
+        )
+        reasoning = result.get("reasoning") or (
+            f"High-intent checkout drop-off detected. Dispatched personalized Hinglish outreach with 5% time-boxed dynamic incentive."
         )
 
         return RecoveryProposal(
             transaction_id=txn.transaction_id,
             agent="CartRescuer",
             action=result.get("action", "send_whatsapp"),
-            message=result.get("whatsapp_message", f"Aapka ₹{txn.amount:.0f} ka order wait kar raha hai! 5% discount ke saath complete karein."),
+            message=message,
             channel=Channel.WHATSAPP,
             discount_pct=float(result.get("discount_pct", 5.0)),
-            reasoning=result.get("reasoning", ""),
+            reasoning=reasoning,
         )
 
 
