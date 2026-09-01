@@ -1,0 +1,342 @@
+/* ─── Google Fonts ─────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
+
+/* ─── Design Tokens ─────────────────────────────────────── */
+@theme {
+  /* Chrome (header + sidebar) — deep, cool near-black */
+  --color-chrome:         #0B0E14;
+  --color-chrome-mid:     #111722;
+  --color-chrome-surface: #19212E;
+  --color-chrome-border:  #222C3C;
+  --color-chrome-muted:   #4A5568;
+
+  /* Primary accent — deep royal blue (trust / financial) */
+  --color-accent:         #2B51D6;
+  --color-accent-dark:    #1E3FA8;
+  --color-accent-light:   #4B6EE8;
+  --color-accent-subtle:  #EEF2FE;
+  --color-accent-border:  #C4CEFC;
+
+  /* Recovered / success — muted forest green */
+  --color-emerald:        #15803D;
+  --color-emerald-dark:   #166534;
+  --color-emerald-subtle: #F0FDF4;
+  --color-emerald-border: #BBF7D0;
+  --color-emerald-text:   #14532D;
+
+  /* Escalation / danger — ops-grade deep red */
+  --color-rose:           #B91C1C;
+  --color-rose-subtle:    #FEF2F2;
+  --color-rose-border:    #FECACA;
+  --color-rose-text:      #7F1D1D;
+
+  /* Sentinel / warning — muted amber */
+  --color-amber:          #D97706;
+  --color-amber-subtle:   #FFFBEB;
+  --color-amber-border:   #FDE68A;
+  --color-amber-text:     #78350F;
+
+  /* Neutral surface greys */
+  --color-slate-50:       #F9FAFB;
+  --color-slate-100:      #F1F3F7;
+  --color-slate-200:      #DDE1EA;
+  --color-slate-300:      #C4CBDB;
+  --color-slate-400:      #8B9BB4;
+  --color-slate-500:      #5A6578;
+  --color-slate-600:      #3F4A5F;
+  --color-slate-700:      #2C3547;
+  --color-slate-800:      #1A2130;
+  --color-slate-900:      #0F1117;
+
+  /* Surface / bg */
+  --color-surface:        #FFFFFF;
+  --color-bg:             #F1F3F7;
+  --color-border:         #DDE1EA;
+  --color-border-light:   #E8EBF0;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radius — tighter across the board */
+  --radius-xs:  3px;
+  --radius-sm:  4px;
+  --radius:     6px;
+  --radius-md:  8px;
+  --radius-lg:  10px;
+  --radius-xl:  12px;
+  --radius-full: 9999px;
+}
+
+/* ─── Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+html, body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #F1F3F7;
+  color: #0F1117;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #F1F3F7; }
+::-webkit-scrollbar-thumb { background: #C4CBDB; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #8B9BB4; }
+
+/* ─── Material Symbols ───────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  vertical-align: middle;
+}
+
+/* ─── Layout Shell ───────────────────────────────────────── */
+.layout-header  { position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: 52px; }
+.layout-sidebar { position: fixed; top: 52px; left: 0; bottom: 0; z-index: 40; width: 216px; }
+.layout-main    { padding-left: 216px; padding-top: 52px; min-height: 100vh; }
+
+/* ─── Container Tier System ──────────────────────────────── */
+
+/*
+  Tier 1 — ambient groupings (Agent Pipeline wrapper)
+  No border, no shadow, no fill. Section label + whitespace only.
+  Use gap/padding in JSX. No dedicated CSS class.
+*/
+
+/*
+  Tier 2 — data tiles (stat tiles, compliance, audit trail)
+  Hairline border only. 4px radius. NO shadow. Never border + shadow + fill.
+*/
+.t2-tile {
+  background: #FFFFFF;
+  border: 1px solid #DDE1EA;
+  border-radius: 4px;
+  /* Deliberately no box-shadow */
+}
+
+/*
+  Tier 3 — actionable / alert panels (Escalation, Sentinel)
+  Real elevation. Semantic left-accent bar. Tinted shadow.
+*/
+.t3-panel {
+  background: #FFFFFF;
+  border-radius: 6px;
+  border: 1px solid #DDE1EA;
+  box-shadow: 0 2px 10px rgba(11, 14, 20, 0.07), 0 1px 3px rgba(11, 14, 20, 0.04);
+}
+
+/* Tier 3 — Escalation variant */
+.t3-escalation {
+  border-color: #FECACA;
+  border-left: 3px solid #B91C1C;
+  box-shadow: 0 2px 10px rgba(185, 28, 28, 0.06), 0 1px 3px rgba(11, 14, 20, 0.04);
+}
+
+/* Tier 3 — Sentinel / warning variant */
+.t3-sentinel {
+  border-color: #FDE68A;
+  border-left: 3px solid #D97706;
+  box-shadow: 0 2px 10px rgba(217, 119, 6, 0.06), 0 1px 3px rgba(11, 14, 20, 0.04);
+}
+
+/*
+  Tier 4 — empty / waiting vessels (Audit Trail when empty)
+  Dashed low-emphasis boundary. No fill. Signals "nothing yet".
+*/
+.t4-vessel {
+  background: transparent;
+  border: 1px dashed #C4CBDB;
+  border-radius: 4px;
+}
+
+/* Legacy — keeps old .card references from breaking; stripped of shadow */
+.card {
+  background: #FFFFFF;
+  border-radius: 6px;
+  border: 1px solid #DDE1EA;
+  /* No box-shadow */
+}
+.card-interactive { transition: border-color 0.15s ease; }
+.card-interactive:hover { border-color: #4B6EE8; }
+
+/* ─── Financial KPI Numbers ──────────────────────────────── */
+.kpi-value {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  color: #0F1117;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #5A6578;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ─── Button system ──────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: #2B51D6; color: #fff;
+  border: none; border-radius: 4px;
+  font-size: 13px; font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.12s ease;
+}
+.btn-primary:hover  { background: #1E3FA8; }
+.btn-primary:active { background: #1830A0; }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: #FFFFFF; color: #3F4A5F;
+  border: 1px solid #DDE1EA; border-radius: 4px;
+  font-size: 13px; font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.btn-secondary:hover   { background: #F9FAFB; border-color: #8B9BB4; }
+.btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── Status chips — muted, desaturated ops palette ─────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px; font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+/* Desaturated, lower contrast — reserve bright for genuine signals */
+.chip-recovered  { background: #F0FDF4; color: #15803D;  border: 1px solid #BBF7D0; }
+.chip-ptp        { background: #EEF2FE; color: #2B51D6;  border: 1px solid #C4CEFC; }
+.chip-aborted    { background: #FEF2F2; color: #991B1B;  border: 1px solid #FECACA; }
+.chip-written    { background: #F9FAFB; color: #5A6578;  border: 1px solid #DDE1EA; }
+.chip-escalated  { background: #FFFBEB; color: #92400E;  border: 1px solid #FDE68A; }
+.chip-negotiating{ background: #F0FDF4; color: #166534;  border: 1px solid #BBF7D0; }
+.chip-default    { background: #F9FAFB; color: #5A6578;  border: 1px solid #DDE1EA; }
+.chip-accent     { background: #EEF2FE; color: #1E3FA8;  border: 1px solid #C4CEFC; }
+/* chip-live removed from system — use subject-matter signals instead */
+
+/* ─── Progress bar ───────────────────────────────────────── */
+.progress-bar { height: 3px; border-radius: 2px; background: #E8EBF0; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+/* ─── Table utilities ────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  background: #F9FAFB;
+  padding: 9px 14px;
+  font-size: 11px; font-weight: 600;
+  color: #5A6578;
+  text-align: left; letter-spacing: 0.03em;
+  border-bottom: 1px solid #DDE1EA;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 10px 14px;
+  font-size: 13px; color: #0F1117;
+  border-bottom: 1px solid #F1F3F7;
+  vertical-align: middle;
+}
+.data-table tbody tr { transition: background 0.1s ease; cursor: pointer; }
+.data-table tbody tr:hover { background: #F9FAFB; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+
+/* ─── Modal ──────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(11, 14, 20, 0.65);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-card {
+  background: #FFFFFF;
+  border-radius: 6px;
+  border: 1px solid #DDE1EA;
+  box-shadow: 0 20px 60px rgba(11,14,20,0.18), 0 6px 16px rgba(11,14,20,0.10);
+  max-height: 90vh; overflow-y: auto;
+}
+
+/* ─── Toast ──────────────────────────────────────────────── */
+@keyframes toast-in  { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+@keyframes toast-out { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(10px); } }
+.toast-enter { animation: toast-in  0.18s ease-out forwards; }
+.toast-exit  { animation: toast-out 0.18s ease-in  forwards; }
+
+/* ─── Pipeline rail system ───────────────────────────────── */
+/*
+  The rail is an absolutely-positioned 1px line behind the step nodes.
+  top: 18px = half of a 36px node circle, centering the rail through each node.
+*/
+.pipeline-rail {
+  position: absolute;
+  top: 18px;
+  left: 4%;
+  right: 4%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #DDE1EA 8%, #DDE1EA 92%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Agent node — selected state only gets elevation (deliberate, not default) */
+@keyframes node-select-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(43,81,214,0.25); }
+  50%      { box-shadow: 0 0 0 5px rgba(43,81,214,0);  }
+}
+.node-selected { animation: node-select-pulse 2s ease-in-out infinite; }
+
+/* ─── Filter tabs ────────────────────────────────────────── */
+.filter-tab {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.12s ease;
+}
+.filter-tab-active   { background: #2B51D6; color: #fff; font-weight: 600; }
+.filter-tab-inactive { background: #F9FAFB; color: #5A6578; border: 1px solid #DDE1EA; }
+.filter-tab-inactive:hover { background: #EEF2FE; border-color: #C4CEFC; color: #1E3FA8; }
+
+/* ─── Skeleton ───────────────────────────────────────────── */
+@keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg,#E8EBF0 25%,#DDE1EA 50%,#E8EBF0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 3px;
+}
+
+/* ─── Mono utility ───────────────────────────────────────── */
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ─── Focus ring ─────────────────────────────────────────── */
+:focus-visible { outline: 2px solid #2B51D6; outline-offset: 2px; }
