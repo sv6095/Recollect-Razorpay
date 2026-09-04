@@ -31,7 +31,7 @@ export function SentinelPanel({ refreshKey }: SentinelPanelProps) {
 
   useEffect(() => {
     let alive = true
-    fetch('/api/demo/upcoming-renewals')
+    fetch('/api/upcoming-renewals')
       .then((r) => r.ok ? r.json() : [])
       .then((data) => alive && Array.isArray(data) && setRenewals(data))
       .catch(() => {})

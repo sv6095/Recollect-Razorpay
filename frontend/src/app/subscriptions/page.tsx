@@ -17,66 +17,111 @@ const CALENDAR_DAYS = [
   { d: '01', tag: 'MNC / Tech',   tagColor: '#0F1117', cellBg: '#EEF2FE', sub: '₹4.80 L', subMono: '3,120 debits' },
   { d: '02', tag: 'PSU / Corp',   tagColor: '#3F4A5F', cellBg: '#F1F3F7', sub: '₹3.20 L', subMono: '2,410 debits' },
   { d: '03', tag: 'Mid-market',   tagColor: '#3F4A5F', cellBg: '#F1F3F7', sub: '₹2.65 L', subMono: '1,820 debits' },
-  { d: '04', tag: 'Tier-2 / Govt',tagColor: '#5A6578', cellBg: '#F9FAFB', sub: '₹1.95 L', subMono: '1,210 debits' },
+  { d: '04', tag: 'Today · 4 Sep',tagColor: '#2B51D6', cellBg: '#EEF2FE', isToday: true, sub: '₹1.95 L (Today)', subMono: '1,210 debits executing' },
   { d: '05', tag: 'Sweep batch',  tagColor: '#15803D', cellBg: '#F0FDF4', sub: '₹1.68 L', subMono: '940 debits' },
 ]
 
 const RETRY_RULES = [
-  { trigger: 'T − 48h', cohort: 'Tier-1 corporate payroll', lead: '48h compliant', leadColor: '#2B51D6', channel: 'WhatsApp + SMS', gate: 'Instant auto-charge' },
-  { trigger: 'T − 24h', cohort: 'PSU & SME subscribers',   lead: '24h minimum',   leadColor: '#2B51D6', channel: 'Email + in-app',  gate: 'Auto-charge primed' },
-  { trigger: 'T+0 09:00 IST', cohort: 'General subscriptions', lead: 'Post-notice gate', leadColor: '#5A6578', channel: 'Pre-debit SMS',   gate: 'Secondary bank routing' },
-]
-
-const COMPLIANCE_CARDS = [
-  {
-    icon: 'notifications_active',
-    title: '24h–48h notice window',
-    value: '0 lapses',
-    valueColor: '#15803D',
-    desc: 'Mandatory notification before debit. Charges auto-held if the window has not elapsed.',
-    stats: [{ label: 'Statutory lapses', value: '0 incidents' }, { label: 'Audited batches', value: '14,820 / 14,820' }],
-  },
-  {
-    icon: 'link',
-    title: '1-click opt-out',
-    value: 'Zero-hop URL',
-    valueColor: '#2B51D6',
-    desc: 'Every pre-debit message carries a unique link to pause, modify, or revoke the mandate immediately.',
-    stats: [{ label: 'Opt-out friction', value: 'Zero hops' }, { label: 'Chargeback shield', value: '99.8%' }],
-  },
-  {
-    icon: 'block',
-    title: 'Max 3 retries',
-    value: '318 protected',
-    valueColor: '#D97706',
-    desc: 'Automated debit stops after 3 consecutive failures to prevent penal bounce charges from retail banks.',
-    stats: [{ label: 'Subscribers protected', value: '318 this cycle' }, { label: 'Fallback', value: 'WhatsApp partial link' }],
-  },
+  { trigger: 'T − 48h (2 Sep)', cohort: 'Tier-1 corporate payroll', lead: '48h compliant', leadColor: '#2B51D6', channel: 'WhatsApp + SMS', gate: 'Instant auto-charge' },
+  { trigger: 'T − 24h (3 Sep)', cohort: 'PSU & SME subscribers',   lead: '24h minimum',   leadColor: '#2B51D6', channel: 'Email + in-app',  gate: 'Auto-charge primed' },
+  { trigger: 'T+0 09:00 IST (4 Sep)', cohort: 'General subscriptions', lead: 'Active today', leadColor: '#15803D', channel: 'Pre-debit SMS',   gate: 'Execution live' },
 ]
 
 function SubscriptionsContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [renewals, setRenewals] = useState<any[]>([])
+  const [escalationCount, setEscalationCount] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const { showToast } = useToast()
 
   useEffect(() => {
-    fetch('/api/demo/transactions')
+    fetch('/api/transactions')
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setTransactions(data) })
       .catch(() => {})
-    fetch('/api/demo/stats').then(r => { setIsConnected(r.ok) }).catch(() => {})
+    fetch('/api/upcoming-renewals')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setRenewals(data) })
+      .catch(() => {})
+    fetch('/api/escalations')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setEscalationCount(data.length) })
+      .catch(() => {})
+    fetch('/api/stats').then(r => { setIsConnected(r.ok) }).catch(() => {})
   }, [])
 
-  const sentinelFeed = transactions.filter(t =>
-    t.category === 'SENTINEL' || t.category === 'A' || t.failure_type === 'RECURRING_DEBIT_FAILURE'
+  const subscriptionTxns = transactions.filter(t =>
+    t.category === 'SENTINEL' || t.category === 'A' || t.failure_type === 'RECURRING_DEBIT_FAILURE' || t.is_preemptive
   )
 
-  const totalMandates = transactions.length
-  const totalAmount   = transactions.reduce((s, t) => s + (t.amount ?? 0), 0)
-  const recovered     = transactions.filter(t => t.state === 'RECOVERED')
-  const successRate   = totalMandates > 0 ? ((recovered.length / totalMandates) * 100).toFixed(1) : '0.0'
+  const sentinelFeed = [
+    ...renewals.map((r) => ({
+      id: r.transaction_id || `sentinel-${r.subscription_id || 'sub'}`,
+      customer_name: r.customer_name || 'Subscriber',
+      amount: r.amount || 0,
+      failure_type: 'Upcoming Mandate Renewal',
+      days_overdue: r.days_overdue || 0,
+      state: 'PTP_LOGGED',
+      channel: 'UPI / NACH',
+      recovery_prob: 0.88,
+    })),
+    ...subscriptionTxns,
+  ]
 
-  const riskLabel = (txn: Transaction) => {
+  const totalMandates = subscriptionTxns.length + renewals.length
+  const totalAmount   = subscriptionTxns.reduce((s, t) => s + (t.amount ?? 0), 0) + renewals.reduce((s, r) => s + (r.amount ?? 0), 0)
+  const recovered     = subscriptionTxns.filter(t => t.state === 'RECOVERED')
+  const successRate   = totalMandates > 0 ? ((recovered.length / totalMandates) * 100).toFixed(1) : '100.0'
+
+  const currentMonthYear = '4 September 2026'
+
+  const calendarDays = [
+    { d: '30', prev: true },
+    { d: '31', tag: 'Notice batch', tagColor: '#2B51D6', cellBg: '#EEF2FE', sub: 'Pre-debit notice', subMono: totalMandates > 0 ? `${totalMandates} queued` : 'Mandates clear' },
+    { d: '01', tag: 'MNC / Tech',   tagColor: '#0F1117', cellBg: '#EEF2FE', sub: totalAmount > 0 ? fmt(Math.round(totalAmount * 0.38)) : 'No bounce', subMono: totalMandates > 0 ? `${Math.max(1, Math.ceil(totalMandates * 0.4))} debits` : 'Scan optimal' },
+    { d: '02', tag: 'PSU / Corp',   tagColor: '#3F4A5F', cellBg: '#F1F3F7', sub: totalAmount > 0 ? fmt(Math.round(totalAmount * 0.26)) : 'No bounce', subMono: totalMandates > 0 ? `${Math.max(1, Math.ceil(totalMandates * 0.25))} debits` : 'Scan optimal' },
+    { d: '03', tag: 'Mid-market',   tagColor: '#3F4A5F', cellBg: '#F1F3F7', sub: totalAmount > 0 ? fmt(Math.round(totalAmount * 0.18)) : 'No bounce', subMono: totalMandates > 0 ? `${Math.max(1, Math.ceil(totalMandates * 0.18))} debits` : 'Scan optimal' },
+    { d: '04', tag: 'Today · 4 Sep',tagColor: '#2B51D6', cellBg: '#EEF2FE', isToday: true, sub: '4 Sep (Today)', subMono: totalAmount > 0 ? `${fmt(Math.round(totalAmount * 0.11))} · Active Retry` : 'Active retry batch' },
+    { d: '05', tag: 'Sweep batch',  tagColor: '#15803D', cellBg: '#F0FDF4', sub: totalAmount > 0 ? fmt(Math.round(totalAmount * 0.07)) : 'Zero debit bounce', subMono: 'Sweep scheduled' },
+  ]
+
+  const complianceCards = [
+    {
+      icon: 'notifications_active',
+      title: '24h–48h notice window',
+      value: '0 lapses',
+      valueColor: '#15803D',
+      desc: 'Mandatory notification before debit. Charges auto-held if the window has not elapsed.',
+      stats: [
+        { label: 'Statutory lapses', value: '0 incidents' },
+        { label: 'Audited batches', value: `${transactions.length > 0 ? `${transactions.length} / ${transactions.length}` : '0 / 0'} verified` },
+      ],
+    },
+    {
+      icon: 'link',
+      title: '1-click opt-out',
+      value: 'Zero-hop URL',
+      valueColor: '#2B51D6',
+      desc: 'Every pre-debit message carries a unique link to pause, modify, or revoke the mandate immediately.',
+      stats: [
+        { label: 'Opt-out friction', value: 'Zero hops' },
+        { label: 'Mandate shield', value: totalMandates > 0 ? '100.0%' : 'Active' },
+      ],
+    },
+    {
+      icon: 'block',
+      title: 'Max 3 retries',
+      value: totalMandates > 0 ? `${totalMandates} protected` : 'Protected',
+      valueColor: '#D97706',
+      desc: 'Automated debit stops after 3 consecutive failures to prevent penal bounce charges from retail banks.',
+      stats: [
+        { label: 'Subscribers protected', value: `${totalMandates} active` },
+        { label: 'Fallback', value: 'WhatsApp partial link' },
+      ],
+    },
+  ]
+
+  const riskLabel = (txn: any) => {
     const p = txn.recovery_prob ?? 0.5
     if (p < 0.3) return { label: `${Math.round((1-p)*100)}% low balance`,   color: '#D97706' }
     if (p < 0.6) return { label: `${Math.round((1-p)*100)}% high traffic`,  color: '#B91C1C' }
@@ -84,7 +129,7 @@ function SubscriptionsContent() {
     return           { label: `${Math.round((1-p)*100)}% late credit`,       color: '#5A6578' }
   }
 
-  const actionLabel = (txn: Transaction) => {
+  const actionLabel = (txn: any) => {
     if (txn.state === 'RECOVERED')  return { label: 'Completed',            color: '#15803D' }
     if (txn.state === 'PTP_LOGGED') return { label: 'Pre-debit dispatched', color: '#2B51D6' }
     if (txn.state === 'ABORTED')    return { label: 'Rescheduled',          color: '#D97706' }
@@ -95,37 +140,40 @@ function SubscriptionsContent() {
   return (
     <>
       <Header isConnected={isConnected} />
-      <Sidebar escalationCount={0} />
+      <Sidebar escalationCount={escalationCount} />
 
-      <div className="layout-main">
-        <main className="w-full px-6 py-6 min-h-screen" style={{ background: '#F1F3F7' }}>
-          <div className="flex flex-col gap-6 max-w-[1400px]">
+      <div className="app-main">
+        <main
+          className="w-full px-6 lg:px-10 py-8 min-h-screen"
+          style={{ background: 'linear-gradient(180deg, #F5F7FB 0%, #EEF2F9 25%, #F5F7FB 100%)' }}
+        >
+          <div className="flex flex-col gap-6 max-w-[1500px] mx-auto">
 
             {/* Page title */}
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <nav className="flex items-center gap-1 text-[11px] mb-1" style={{ color: '#8B9BB4' }}>
                   <Link href="/" className="hover:text-[#2B51D6] transition-colors">Recovery</Link>
                   <span style={{ color: '#C4CBDB' }}>›</span>
                   <span>Subscriptions</span>
                 </nav>
-                <h1 className="text-[20px] font-bold tracking-tight" style={{ color: '#0F1117', letterSpacing: '-0.025em' }}>
+                <h1 className="text-[22px] font-bold tracking-tight" style={{ color: '#0F1117', letterSpacing: '-0.025em' }}>
                   Subscriptions & e-mandates
                 </h1>
-                <p className="text-[12px] mt-1" style={{ color: '#8B9BB4' }}>
+                <p className="text-[12.5px] mt-0.5" style={{ color: '#8B9BB4' }}>
                   Salary-cycle retry orchestration · pre-debit compliance · sentinel forecast
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="btn-secondary text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">download</span>
+                <button className="btn-secondary btn-sm flex items-center gap-1.5">
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
                   Export CSV
                 </button>
                 <button
                   onClick={() => showToast('Batch queued', 'Salary cluster pre-debit batch scheduled for execution')}
-                  className="btn-primary text-[12px]"
+                  className="btn-primary btn-sm flex items-center gap-1.5"
                 >
-                  <span className="material-symbols-outlined text-[14px]">play_circle</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_circle</span>
                   Run pre-debit batch
                 </button>
               </div>
@@ -135,8 +183,8 @@ function SubscriptionsContent() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { label: 'e-Mandates monitored', value: totalMandates > 0 ? totalMandates.toLocaleString('en-IN') : '—', sub: totalAmount > 0 ? `${fmt(totalAmount)} portfolio` : 'No mandates loaded', accent: '#2B51D6' },
-                { label: 'Pre-debit success rate', value: `${successRate}%`, sub: `Predicted: ${(parseFloat(successRate) + 1.8).toFixed(1)}%`, accent: '#15803D' },
-                { label: 'Salary cluster yield', value: totalAmount > 0 ? `₹${(totalAmount/100000).toFixed(2)} L` : '₹0 L', sub: 'Recovered 1st–5th window', accent: '#2B51D6' },
+                { label: 'Pre-debit success rate', value: `${successRate}%`, sub: `${recovered.length} of ${totalMandates || 1} recovered`, accent: '#15803D' },
+                { label: 'Salary cluster yield', value: totalAmount > 0 ? fmt(totalAmount) : '₹0', sub: '1st–5th payroll window', accent: '#2B51D6' },
                 { label: 'RBI compliance SLA', value: '100.0%', sub: '0 statutory lapses', accent: '#15803D' },
               ].map((kpi) => (
                 <div key={kpi.label} className="t2-tile flex flex-col gap-2" style={{ padding: '14px 16px' }}>
@@ -164,12 +212,12 @@ function SubscriptionsContent() {
                     <span className="w-3 h-3 rounded inline-block ml-2" style={{ background: '#F9FAFB', border: '1px solid #DDE1EA' }} /> Standard
                   </div>
                   <div
-                    className="flex items-center gap-1 font-mono text-[11px]"
+                    className="flex items-center gap-1.5 font-mono text-[11px]"
                     style={{ background: '#F9FAFB', border: '1px solid #DDE1EA', borderRadius: 4, padding: '4px 10px' }}
                   >
-                    <button style={{ color: '#8B9BB4' }}>‹</button>
-                    <span className="font-semibold px-2" style={{ color: '#0F1117' }}>April 2025</span>
-                    <button style={{ color: '#8B9BB4' }}>›</button>
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                    <span className="font-semibold px-1" style={{ color: '#0F1117' }}>{currentMonthYear}</span>
+                    <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-sans">Today</span>
                   </div>
                 </div>
               </div>
@@ -181,37 +229,48 @@ function SubscriptionsContent() {
                     {d}
                   </div>
                 ))}
-                {CALENDAR_DAYS.map((day, i) => (
-                  <div
-                    key={i}
-                    className="min-h-[72px] flex flex-col justify-between"
-                    style={{
-                      padding: '8px',
-                      borderRadius: 4,
-                      border: `1px solid ${day.prev ? '#E8EBF0' : '#DDE1EA'}`,
-                      background: day.prev ? '#FAFAFA' : (day.cellBg ?? '#FFFFFF'),
-                      opacity: day.prev ? 0.4 : 1,
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[11px] font-bold" style={{ color: day.tag ? '#0F1117' : '#C4CBDB' }}>{day.d}</span>
-                      {day.tag && (
-                        <span
-                          className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                          style={{ background: day.tagColor + '18', color: day.tagColor, border: `1px solid ${day.tagColor}30` }}
-                        >
-                          {day.tag}
-                        </span>
+                {calendarDays.map((day, i) => {
+                  const isDay4 = (day as any).isToday || day.d === '04'
+                  return (
+                    <div
+                      key={i}
+                      className="min-h-[72px] flex flex-col justify-between transition-all"
+                      style={{
+                        padding: '8px',
+                        borderRadius: 6,
+                        border: isDay4 ? '2px solid #2B51D6' : `1px solid ${day.prev ? '#E8EBF0' : '#DDE1EA'}`,
+                        background: isDay4 ? '#EEF2FE' : day.prev ? '#FAFAFA' : (day.cellBg ?? '#FFFFFF'),
+                        boxShadow: isDay4 ? '0 0 0 1px #2B51D6, 0 4px 12px rgba(43,81,214,0.12)' : 'none',
+                        opacity: day.prev ? 0.4 : 1,
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-[11px] font-bold" style={{ color: isDay4 ? '#2B51D6' : day.tag ? '#0F1117' : '#C4CBDB' }}>{day.d}</span>
+                          {isDay4 && <span className="w-1.5 h-1.5 rounded-full bg-[#2B51D6] animate-pulse" />}
+                        </div>
+                        {day.tag && (
+                          <span
+                            className="font-mono text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                            style={{
+                              background: isDay4 ? '#2B51D6' : day.tagColor + '18',
+                              color: isDay4 ? '#FFFFFF' : day.tagColor,
+                              border: isDay4 ? '1px solid #2B51D6' : `1px solid ${day.tagColor}30`,
+                            }}
+                          >
+                            {day.tag}
+                          </span>
+                        )}
+                      </div>
+                      {day.sub && (
+                        <div>
+                          <p className="font-semibold text-[11px] leading-tight" style={{ color: '#0F1117' }}>{day.sub}</p>
+                          <span className="font-mono text-[10px]" style={{ color: '#8B9BB4' }}>{day.subMono}</span>
+                        </div>
                       )}
                     </div>
-                    {day.sub && (
-                      <div>
-                        <p className="font-semibold text-[11px] leading-tight" style={{ color: '#0F1117' }}>{day.sub}</p>
-                        <span className="font-mono text-[10px]" style={{ color: '#8B9BB4' }}>{day.subMono}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Retry rules table */}
@@ -347,7 +406,7 @@ function SubscriptionsContent() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {COMPLIANCE_CARDS.map((card) => (
+                {complianceCards.map((card) => (
                   <div key={card.title} className="t2-tile flex flex-col gap-3" style={{ padding: '16px 18px' }}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">

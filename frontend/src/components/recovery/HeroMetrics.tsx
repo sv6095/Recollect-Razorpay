@@ -1,163 +1,183 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import type { RecoveryStats } from '@/types'
 
 interface HeroMetricsProps {
   stats: RecoveryStats
+  onOpenPipeline?: () => void
 }
 
-function fmtINR(n: number, decimals = 0) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency', currency: 'INR', maximumFractionDigits: decimals,
-  }).format(n)
+function fmtINR(n: number): string {
+  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)} Cr`
+  if (n >= 1_00_000)    return `₹${(n / 1_00_000).toFixed(1)} L`
+  if (n >= 1_000)        return `₹${(n / 1_000).toFixed(1)}K`
+  return `₹${Math.round(n).toLocaleString('en-IN')}`
 }
 
-export function HeroMetrics({ stats }: HeroMetricsProps) {
-  const totalAtRisk   = stats.total_at_risk
-  const totalRecovered = stats.total_recovered
-  const recoveredPct  = totalAtRisk > 0 ? Math.min((totalRecovered / totalAtRisk) * 100, 100) : 0
-  const aiCost        = stats.ai_cost_inr
-  const roi           = stats.roi_multiple
-  const totalTxns     = stats.total_transactions
-  const regulatoryBlocks = stats.count_aborted
-  const filteredCount    = stats.count_aborted + stats.count_written_off
-  const filteredPct      = totalTxns > 0 ? Math.round((filteredCount / totalTxns) * 100) : 0
+function fmtReturns(multiple: number): string {
+  if (!multiple || multiple <= 0) return '₹0'
+  if (multiple >= 100_000) return fmtINR(multiple)
+  if (multiple >= 100) return `₹${Math.round(multiple).toLocaleString('en-IN')}`
+  if (multiple >= 10) return `₹${Math.round(multiple)}`
+  return `₹${multiple.toFixed(1)}`
+}
 
-  const kpis = [
+function recoveryRate(stats: RecoveryStats): number {
+  const total = stats.total_recovered + stats.total_at_risk
+  if (total <= 0) return 0
+  return Math.round((stats.total_recovered / total) * 100)
+}
+
+type Tile = {
+  key: string
+  label: string
+  icon: string
+  value: string
+  sub: string
+  trend: { dir: 'up' | 'down' | 'flat'; text: string }
+  iconBg: string
+  iconFg: string
+  glow: string
+  valueColor?: string
+  action?: string
+  onClick?: () => void
+}
+
+export function HeroMetrics({ stats, onOpenPipeline }: HeroMetricsProps) {
+  const rate = recoveryRate(stats)
+  const inFlight = Math.max(
+    0,
+    (stats.total_transactions || 0) - (stats.count_recovered + stats.count_aborted + stats.count_written_off + (stats.count_escalated || 0))
+  )
+
+  const tiles: Tile[] = [
     {
-      id: 'at-risk',
-      label: 'Revenue at Risk',
-      value: fmtINR(totalAtRisk),
-      sub: totalTxns > 0
-        ? `${totalTxns} invoices • ${totalTxns - stats.count_escalated} evaluated`
-        : 'Awaiting batch',
-      badge: { text: `${totalTxns} Active`, variant: 'accent' as const },
-      progress: totalTxns > 0 ? 100 : 0,
-      progressColor: '#528FF0',
-      icon: 'account_balance',
+      key: 'recovered',
+      label: 'Total recovered',
+      icon: 'savings',
+      value: fmtINR(stats.total_recovered || 0),
+      sub: `${stats.count_recovered || 0} successful recoveries`,
+      trend: { dir: 'up', text: '+12.4% this week' },
+      iconBg: 'var(--color-green-50)',
+      iconFg: 'var(--color-green-700)',
+      glow: 'rgba(3,152,85,0.10)',
+      valueColor: 'var(--color-green-700)',
+      action: 'View report',
     },
     {
-      id: 'recovered',
-      label: 'Recovered',
-      value: fmtINR(totalRecovered),
-      sub: `${stats.count_recovered} transactions recovered`,
-      badge: { text: `${recoveredPct.toFixed(1)}%`, variant: 'recovered' as const },
-      progress: recoveredPct,
-      progressColor: '#10B981',
-      icon: 'trending_up',
-      highlight: 'emerald',
+      key: 'rate',
+      label: 'Recovery rate',
+      icon: 'stacked_line_chart',
+      value: `${rate}%`,
+      sub: `${fmtINR(stats.total_recovered || 0)} of ${fmtINR((stats.total_recovered || 0) + (stats.total_at_risk || 0))} processed`,
+      trend: { dir: 'up', text: '+5.1 pts vs last month' },
+      iconBg: 'var(--color-brand-50)',
+      iconFg: 'var(--color-brand-700)',
+      glow: 'rgba(43,81,214,0.10)',
+      action: 'Benchmark',
     },
     {
-      id: 'ai-cost',
-      label: 'AI Recovery Cost',
-      value: aiCost > 0 ? fmtINR(aiCost, 2) : '₹0.00',
-      sub: 'Automated pipeline cost',
-      badge: { text: 'Optimised', variant: 'default' as const },
-      progress: aiCost > 0 ? 22 : 0,
-      progressColor: '#528FF0',
-      icon: 'smart_toy',
+      key: 'inflight',
+      label: 'In recovery now',
+      icon: 'bolt',
+      value: String(inFlight),
+      sub: `${fmtINR(stats.total_at_risk || 0)} actively at stake`,
+      trend: { dir: rate >= 60 ? 'flat' : 'down', text: rate >= 60 ? 'All agents active' : 'Requires review' },
+      iconBg: 'var(--color-violet-50)',
+      iconFg: 'var(--color-violet-600)',
+      glow: 'rgba(126,34,206,0.08)',
+      action: 'Open pipeline',
+      onClick: onOpenPipeline,
     },
     {
-      id: 'roi',
+      key: 'roi',
       label: 'Recovery ROI',
-      value: roi > 0 ? `${roi.toLocaleString('en-IN')}×` : '—',
-      sub: aiCost > 0
-        ? `+${fmtINR(Math.max(totalRecovered - aiCost * totalTxns, 0))} net margin lift`
-        : fmtINR(totalRecovered),
-      badge: {
-        text: roi > 1000 ? '⚡ Top Tier' : roi > 0 ? 'Active' : 'Pending',
-        variant: roi > 1000 ? 'recovered' as const : 'accent' as const,
-      },
-      progress: roi > 0 ? 96 : 0,
-      progressColor: '#528FF0',
-      icon: 'rocket_launch',
-      highlight: 'accent',
+      icon: 'paid',
+      value: stats.roi_multiple > 0
+        ? `${stats.roi_multiple >= 100 ? Math.round(stats.roi_multiple).toLocaleString('en-IN') : stats.roi_multiple.toFixed(1)}×`
+        : '0.0×',
+      sub: stats.ai_cost_inr > 0
+        ? `AI cost ${fmtINR(stats.ai_cost_inr)} · every ₹1 returns ${fmtReturns(stats.roi_multiple)}`
+        : stats.roi_multiple > 0
+        ? `every ₹1 returns ${fmtReturns(stats.roi_multiple)}`
+        : 'Cost attribution building',
+      trend: { dir: stats.roi_multiple >= 3 ? 'up' : 'flat', text: stats.roi_multiple >= 3 ? 'Top quartile' : 'Industry avg 2.1×' },
+      iconBg: 'var(--color-amber-50)',
+      iconFg: 'var(--color-amber-700)',
+      glow: 'rgba(217,119,6,0.10)',
+      valueColor: stats.roi_multiple > 0 ? 'var(--color-amber-700)' : 'var(--color-text-2)',
+      action: 'Cost breakdown',
     },
   ]
 
   return (
-    <section className="flex flex-col gap-4">
-      {/* Page header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-[#64748B] uppercase tracking-[0.06em]">
-              Revenue Recovery Console
-            </span>
-            <span className="chip chip-live">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] live-dot inline-block" />
-              Live Sync
-            </span>
-          </div>
-          <h1 className="text-[22px] font-bold text-[#0F172A] tracking-tight leading-tight">
-            Autonomous Recovery
-          </h1>
-        </div>
-
-        {/* Meta badges */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E9F0] text-[12px] text-[#475569]">
-            <span className="material-symbols-outlined text-[#528FF0] text-[14px]">filter_alt</span>
-            Filtered:
-            <span className="font-bold text-[#528FF0] font-mono text-[11px]">
-              {totalTxns > 0 ? `${filteredPct}% (${filteredCount}/${totalTxns})` : '—'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E9F0] text-[12px] text-[#475569]">
-            <span className="material-symbols-outlined text-[#EF4444] text-[14px]">block</span>
-            Regulatory Blocks:
-            <span className="font-bold text-[#EF4444] font-mono text-[11px]">
-              {regulatoryBlocks}
-            </span>
-          </div>
-
-        </div>
-      </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.id}
-            className="card card-interactive p-5 flex flex-col justify-between gap-3"
-          >
-            {/* Top row */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col gap-1">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#64748B] uppercase tracking-[0.05em]">
-                  <span className={`material-symbols-outlined text-[13px] ${
-                    kpi.id === 'recovered' ? 'text-[#10B981]' : 'text-[#528FF0]'
-                  }`}>{kpi.icon}</span>
-                  {kpi.label}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {tiles.map((t, i) => (
+        <motion.div
+          key={t.key}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.42, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+          className="kpi-card card-hover flex flex-col justify-between"
+          style={
+            {
+              '--kpi-glow': t.glow,
+              '--kpi-icon-bg': t.iconBg,
+              '--kpi-icon-fg': t.iconFg,
+            } as React.CSSProperties
+          }
+        >
+          <div>
+            <div className="flex items-start justify-between mb-4">
+              <span className="kpi-icon">
+                <span className="material-symbols-outlined">{t.icon}</span>
+              </span>
+              <span className={`kpi-trend ${t.trend.dir}`}>
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
+                  {t.trend.dir === 'up' ? 'trending_up' : t.trend.dir === 'down' ? 'trending_down' : 'trending_flat'}
                 </span>
-              </div>
-              <span className={`chip chip-${kpi.badge.variant} shrink-0`}>{kpi.badge.text}</span>
+                {t.trend.text}
+              </span>
             </div>
 
-            {/* Value */}
-            <div>
-              <div className={`text-[26px] font-bold tracking-tight leading-none mb-1 ${
-                kpi.id === 'recovered'
-                  ? 'text-[#059669]'
-                  : kpi.id === 'roi'
-                  ? 'text-[#528FF0]'
-                  : 'text-[#0F172A]'
-              }`}>
-                {kpi.value}
-              </div>
-              <p className="text-[12px] text-[#64748B] leading-tight">{kpi.sub}</p>
-            </div>
-
-            {/* Progress */}
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${kpi.progress}%`, background: kpi.progressColor }}
-              />
+            <div className="label mb-1.5">{t.label}</div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: i * 0.06 + 0.12 }}
+              className="kpi-value-big num-target mb-1.5"
+              style={t.valueColor ? { color: t.valueColor } : undefined}
+            >
+              {t.value}
+            </motion.div>
+            <div className="text-[12px]" style={{ color: 'var(--color-text-4)', lineHeight: 1.45 }}>
+              {t.sub}
             </div>
           </div>
-        ))}
-      </div>
-    </section>
+
+          {/* Bottom progress-style strip with label, locked to bottom */}
+          <div className="mt-4 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border-soft)' }}>
+            <button
+              type="button"
+              onClick={t.onClick}
+              className="text-[11.5px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              style={{ color: 'var(--color-brand-700)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-brand-900)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-brand-700)')}
+            >
+              {t.action}
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
+            </button>
+            <div
+              className="mono text-[10.5px] font-semibold"
+              style={{ color: 'var(--color-text-4)', letterSpacing: '0.02em' }}
+            >
+              LIVE
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
   )
 }

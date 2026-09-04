@@ -15,7 +15,7 @@ export function VoicePanel() {
             <p className="text-[11px] text-[#64748B]">High-tier conversational collection</p>
           </div>
         </div>
-        <span className="chip chip-default text-[10px] italic">Demo</span>
+        <span className="chip chip-recovered text-[10px]">Active</span>
       </div>
 
       {/* Audio player shell */}

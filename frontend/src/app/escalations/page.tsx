@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import type { Escalation } from '@/types'
+import type { Escalation, RecoveryStats } from '@/types'
 import { Header } from '@/components/recovery/Header'
 import { Sidebar } from '@/components/recovery/Sidebar'
 import { ToastProvider, useToast } from '@/components/recovery/ToastContext'
@@ -24,6 +24,8 @@ const OPERATOR_ACTIONS = [
 
 function EscalationsContent() {
   const [escalations, setEscalations] = useState<Escalation[]>([])
+  const [stats, setStats] = useState<RecoveryStats | null>(null)
+  const [totalTxnCount, setTotalTxnCount] = useState<number>(0)
   const [selectedIdx, setSelectedIdx] = useState<number>(0)
   const [selectedAction, setSelectedAction] = useState<string>('approve')
   const [justification, setJustification] = useState('')
@@ -31,16 +33,56 @@ function EscalationsContent() {
   const [signingKey] = useState(`EQ25519-DP-${Math.random().toString(36).substring(2, 6).toUpperCase()}`)
   const { showToast } = useToast()
 
-  useEffect(() => {
-    fetch('/api/demo/escalations')
+  const refreshData = () => {
+    fetch('/api/escalations')
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setEscalations(data) })
       .catch(() => {})
-    fetch('/api/demo/stats').then(r => { setIsConnected(r.ok) }).catch(() => {})
+    fetch('/api/stats')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setStats(data)
+          setIsConnected(true)
+        }
+      })
+      .catch(() => {})
+    fetch('/api/transactions')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) setTotalTxnCount(data.length)
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    refreshData()
   }, [])
 
   const selected = escalations[selectedIdx]
   const totalExposure = escalations.reduce((s, e) => s + (e.amount ?? 0), 0)
+
+  // Dynamic KPI calculations
+  const totalCases = Math.max(totalTxnCount, stats?.total_transactions ?? 0, escalations.length)
+  const escalatedCases = escalations.length || (stats?.count_escalated ?? 0)
+
+  const interventionRate = totalCases > 0
+    ? ((escalatedCases / totalCases) * 100).toFixed(1)
+    : '0.0'
+  const autonomousRate = totalCases > 0
+    ? (100 - parseFloat(interventionRate)).toFixed(1)
+    : '100.0'
+  const interventionSub = totalCases > 0
+    ? `${autonomousRate}% autonomous (${escalatedCases} of ${totalCases})`
+    : '100.0% autonomous'
+
+  const autonomousDecisions = Math.max(0, totalCases - escalatedCases)
+  const concurrenceRate = totalCases > 0
+    ? ((autonomousDecisions / totalCases) * 100).toFixed(1)
+    : '100.0'
+  const concurrenceSub = totalCases > 0
+    ? `${autonomousDecisions} of ${totalCases} rulings upheld`
+    : 'All policy decisions compliant'
 
   const handleAuthorize = () => {
     if (!justification.trim()) {
@@ -56,31 +98,34 @@ function EscalationsContent() {
       <Header isConnected={isConnected} />
       <Sidebar escalationCount={escalations.length} />
 
-      <div className="layout-main">
-        <main className="w-full px-6 py-6 min-h-screen" style={{ background: '#F1F3F7' }}>
-          <div className="flex flex-col gap-6 max-w-[1400px]">
+      <div className="app-main">
+        <main
+          className="w-full px-6 lg:px-10 py-8 min-h-screen"
+          style={{ background: 'linear-gradient(180deg, #F5F7FB 0%, #EEF2F9 25%, #F5F7FB 100%)' }}
+        >
+          <div className="flex flex-col gap-6 max-w-[1500px] mx-auto">
 
             {/* Page title */}
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <nav className="flex items-center gap-1 text-[11px] mb-1" style={{ color: '#8B9BB4' }}>
                   <Link href="/" className="hover:text-[#2B51D6] transition-colors">Recovery</Link>
                   <span style={{ color: '#C4CBDB' }}>›</span>
                   <span>Escalations</span>
                 </nav>
-                <h1 className="text-[20px] font-bold tracking-tight" style={{ color: '#0F1117', letterSpacing: '-0.025em' }}>
+                <h1 className="text-[22px] font-bold tracking-tight" style={{ color: '#0F1117', letterSpacing: '-0.025em' }}>
                   Escalation workbench
                 </h1>
-                <p className="text-[12px] mt-1" style={{ color: '#8B9BB4' }}>
+                <p className="text-[12.5px] mt-0.5" style={{ color: '#8B9BB4' }}>
                   Human-in-the-loop review queue · guardrails exceeded
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => fetch('/api/demo/escalations').then(r => r.json()).then(d => Array.isArray(d) && setEscalations(d))}
-                  className="btn-secondary"
+                  onClick={refreshData}
+                  className="btn-secondary btn-sm flex items-center gap-1.5"
                 >
-                  <span className="material-symbols-outlined text-[14px]">sync</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>sync</span>
                   Refresh
                 </button>
               </div>
@@ -98,15 +143,15 @@ function EscalationsContent() {
                 },
                 {
                   label: 'Human intervention rate',
-                  value: '1.2%',
-                  sub: '98.8% autonomous',
+                  value: `${interventionRate}%`,
+                  sub: interventionSub,
                   accent: '#2B51D6',
                   valueColor: '#0F1117',
                 },
                 {
                   label: 'Arbiter concurrence',
-                  value: '88.4%',
-                  sub: 'Last 250 reviews',
+                  value: `${concurrenceRate}%`,
+                  sub: concurrenceSub,
                   accent: '#15803D',
                   valueColor: '#0F1117',
                 },
@@ -175,7 +220,7 @@ function EscalationsContent() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <span className="text-[13px] font-semibold block truncate" style={{ color: '#0F1117' }}>
-                                {esc.customer_name}
+                                {esc.customer_name || 'Enterprise Customer'}
                               </span>
                               <span className="font-mono text-[10px]" style={{ color: '#8B9BB4' }}>
                                 {esc.reason?.replace(/_/g, ' ')}
@@ -221,7 +266,7 @@ function EscalationsContent() {
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 pb-4" style={{ borderBottom: '1px solid #FEE2E2' }}>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-[15px] font-bold" style={{ color: '#0F1117' }}>{selected.customer_name}</h3>
+                            <h3 className="text-[15px] font-bold" style={{ color: '#0F1117' }}>{selected.customer_name || 'Enterprise Customer'}</h3>
                             <span className="chip chip-aborted">VIP tier-1</span>
                           </div>
                           <p className="font-mono text-[11px] mt-1" style={{ color: '#8B9BB4' }}>

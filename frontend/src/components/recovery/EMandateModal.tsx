@@ -1,6 +1,7 @@
 'use client'
 
 import type { Transaction } from '@/types'
+import { getCustomerDetails } from './customerUtils'
 
 interface EMandateModalProps {
   onClose: () => void
@@ -8,9 +9,10 @@ interface EMandateModalProps {
 }
 
 export function EMandateModal({ onClose, transaction }: EMandateModalProps) {
-  const customerName = transaction?.customer_name ?? 'Customer'
-  const amount = transaction?.amount
-  const txnId = transaction?.id ?? 'TXN_DEMO'
+  const details = getCustomerDetails(transaction)
+  const customerName = details.name
+  const amount = transaction?.amount || details.amount
+  const txnId = transaction?.id ?? details.id
   const channel = transaction?.channel ?? 'WHATSAPP'
 
   const fmt = (n: number) =>
@@ -81,9 +83,7 @@ export function EMandateModal({ onClose, transaction }: EMandateModalProps) {
                   <div>
                     <span className="text-slate-400 font-mono-code text-[10px] block">Customer:</span>
                     <strong className="font-bold text-slate-900">{customerName}</strong>
-                    {transaction?.customer_phone && (
-                      <span className="text-slate-400 font-mono-code block text-[11px]">{transaction.customer_phone}</span>
-                    )}
+                    <span className="text-slate-400 font-mono-code block text-[11px]">{details.phone}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 font-mono-code text-[10px] block">Mandate Amount:</span>

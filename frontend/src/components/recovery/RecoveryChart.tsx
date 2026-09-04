@@ -98,7 +98,7 @@ export function RecoveryChart({ stats, refreshKey }: RecoveryChartProps) {
     setLoading(true)
     ;(async () => {
       try {
-        const res = await fetch('/api/demo/chart-data')
+        const res = await fetch('/api/chart-data')
         if (!alive) return
         if (res.ok) {
           const data = await res.json()

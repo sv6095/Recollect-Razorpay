@@ -16,6 +16,7 @@ export type Channel = 'WHATSAPP' | 'EMAIL' | 'VOICE' | 'RETRY' | 'NONE'
 
 export interface Transaction {
   id: string
+  transaction_id?: string
   merchant_id: string
   customer_id: string
   customer_name: string
@@ -32,7 +33,7 @@ export interface Transaction {
   prior_contact_count: number
   has_consent: boolean
   is_preemptive: boolean
-  is_live_demo_row: boolean
+  is_live_demo_row?: boolean
   payment_link_url: string | null
   abort_reason: string | null
   extra: string
@@ -86,7 +87,7 @@ export interface RecoveryStats {
 }
 
 export interface WSEvent {
-  type: 'audit_row' | 'state_change' | 'counter_update' | 'decision_ledger' | 'recovery_confirmed' | 'escalation' | 'ping'
+  type: 'audit_row' | 'state_change' | 'counter_update' | 'decision_ledger' | 'recovery_confirmed' | 'escalation' | 'ping' | 'connected'
   transaction_id?: string
   merchant_id?: string
   customer_name?: string

@@ -68,33 +68,55 @@ interface AgentPipelineProps {
   rows: WSEvent[]
   activeAgent: string | null
   onAgentClick: (agentKey: string | null) => void
+  onInspectAgent?: (agentKey: string) => void
 }
 
-export function AgentPipeline({ rows, activeAgent, onAgentClick }: AgentPipelineProps) {
+export function AgentPipeline({ rows, activeAgent, onAgentClick, onInspectAgent }: AgentPipelineProps) {
   const countForAgent = (key: string) => rows.filter((r) => r.agent === key).length
 
   return (
     // Tier 1: no border, no shadow, no fill — just whitespace + label
     <section className="flex flex-col gap-5">
       {/* Section header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-[14px] font-semibold" style={{ color: '#0F1117' }}>
-            Agent pipeline
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold" style={{ color: '#0F1117' }}>
+              Agent pipeline
+            </h2>
+            <span className="chip chip-recovered text-[9px]">
+              ● LIVE WS STREAM
+            </span>
+          </div>
           <p className="text-[11px] mt-0.5" style={{ color: '#8B9BB4' }}>
-            {rows.length} events processed · click a step to filter the audit trail
+            {rows.length} live event{rows.length === 1 ? '' : 's'} streamed · click a step to filter or inspect execution traces
           </p>
         </div>
-        {activeAgent && (
-          <button
-            onClick={() => onAgentClick(null)}
-            className="text-[11px] font-medium transition-colors"
-            style={{ color: '#2B51D6' }}
-          >
-            Clear filter ×
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {onInspectAgent && (
+            <button
+              onClick={() => onInspectAgent(activeAgent || PIPELINE_STEPS[0].key)}
+              className="btn-secondary text-[12px] py-1 px-3 flex items-center gap-1.5"
+              style={{ background: '#FFFFFF', borderColor: '#DDE1EA', color: '#1A2130' }}
+            >
+              <span className="material-symbols-outlined text-[15px] text-[#2B51D6]">
+                troubleshoot
+              </span>
+              <span>Inspect Agent Steps</span>
+            </button>
+          )}
+
+          {activeAgent && (
+            <button
+              onClick={() => onAgentClick(null)}
+              className="text-[11px] font-medium transition-colors px-2 py-1 rounded"
+              style={{ color: '#2B51D6', background: '#EEF2FE' }}
+            >
+              Clear filter ×
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Rail container */}
@@ -111,33 +133,36 @@ export function AgentPipeline({ rows, activeAgent, onAgentClick }: AgentPipeline
 
             // Node appearance encodes state:
             // Idle → grey circle with step number only
-            // Has events → white circle with agent-colored icon (no pastel bg)
+            // Has events → white circle with agent-colored icon
             // Selected → accent-filled circle with white icon + subtle glow
             const nodeBg = isActive
               ? '#2B51D6'
               : hasEvents
               ? '#FFFFFF'
-              : '#F1F3F7'
+              : '#F9FAFB'
 
             const nodeBorder = isActive
               ? '2px solid #2B51D6'
               : hasEvents
-              ? `1.5px solid ${step.color}60`
+              ? `2px solid ${step.color}`
               : '1.5px solid #DDE1EA'
 
-            const iconColor = isActive ? '#FFFFFF' : hasEvents ? step.color : '#C4CBDB'
+            const iconColor = isActive ? '#FFFFFF' : hasEvents ? step.color : '#8B9BB4'
 
             return (
               <button
                 key={step.key}
-                onClick={() => hasEvents ? onAgentClick(isActive ? null : step.key) : undefined}
-                disabled={!hasEvents}
-                className="flex-1 flex flex-col items-center gap-2 pb-3 px-1 relative"
+                onClick={() => {
+                  onAgentClick(isActive ? null : step.key)
+                }}
+                onDoubleClick={() => {
+                  onInspectAgent?.(step.key)
+                }}
+                className="flex-1 flex flex-col items-center gap-2 pb-3 px-1 relative group cursor-pointer"
                 style={{
-                  cursor: hasEvents ? 'pointer' : 'default',
                   zIndex: 10,
                 }}
-                title={hasEvents ? `Filter by ${step.label}` : step.label}
+                title={`Click to filter by ${step.label} · Double-click to inspect`}
               >
                 {/* Node circle — centered on the rail */}
                 <div
@@ -156,25 +181,15 @@ export function AgentPipeline({ rows, activeAgent, onAgentClick }: AgentPipeline
                     zIndex: 10,
                   }}
                 >
-                  {hasEvents ? (
-                    <span
-                      className="material-symbols-outlined text-[15px]"
-                      style={{
-                        color: iconColor,
-                        fontVariationSettings: `'FILL' ${isActive ? '1' : '1'}`,
-                      }}
-                    >
-                      {step.icon}
-                    </span>
-                  ) : (
-                    // Idle: just the step number, monochrome
-                    <span
-                      className="font-mono text-[10px] font-bold"
-                      style={{ color: '#C4CBDB' }}
-                    >
-                      {idx + 1}
-                    </span>
-                  )}
+                  <span
+                    className="material-symbols-outlined text-[15px]"
+                    style={{
+                      color: iconColor,
+                      fontVariationSettings: `'FILL' ${isActive ? '1' : '0'}`,
+                    }}
+                  >
+                    {step.icon}
+                  </span>
                 </div>
 
                 {/* Event count — below node, in agent color */}

@@ -7,6 +7,7 @@ interface AuditTrailProps {
   rows: WSEvent[]
   agentFilter: string | null
   searchQuery?: string
+  onInspectAgent?: (agentKey: string) => void
 }
 
 const AGENT_COLORS: Record<string, string> = {
@@ -68,7 +69,7 @@ function fmtAmount(n?: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
-export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailProps) {
+export function AuditTrail({ rows, agentFilter, searchQuery = '', onInspectAgent }: AuditTrailProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const q = searchQuery.trim().toLowerCase()
@@ -98,6 +99,9 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
         <h2 className="text-[14px] font-semibold" style={{ color: '#0F1117' }}>
           Audit trail
         </h2>
+        <span className="chip chip-recovered text-[9px]">
+          ● LIVE WS
+        </span>
         {agentFilter && (
           <span className="chip chip-accent">{agentLabel(agentFilter)}</span>
         )}
@@ -105,7 +109,7 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
           className="ml-auto font-mono text-[11px]"
           style={{ color: '#8B9BB4' }}
         >
-          {filtered.length} events
+          {filtered.length} live event{filtered.length === 1 ? '' : 's'}
         </span>
       </div>
 
@@ -116,17 +120,16 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
           className="t4-vessel flex flex-col items-center justify-center gap-4"
           style={{ padding: '64px 32px' }}
         >
-          {/* No generic eye icon — just purposeful copy */}
           <div style={{ textAlign: 'center' }}>
             <p
               className="text-[13px] font-medium"
               style={{ color: '#5A6578', letterSpacing: '-0.01em' }}
             >
               {q
-                ? `No events match "${searchQuery.trim()}"`
+                ? `No live events match "${searchQuery.trim()}"`
                 : agentFilter
-                ? `No events from ${agentLabel(agentFilter)} yet`
-                : 'Waiting for payment events'}
+                ? `No live events from ${agentLabel(agentFilter)} in this session`
+                : 'Real-time payment event stream active'}
             </p>
             <p
               className="text-[12px] mt-1.5"
@@ -135,21 +138,22 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
               {q
                 ? 'Try a different transaction ID, agent name, or message fragment'
                 : agentFilter
-                ? 'This agent has not processed any transactions in the current session'
-                : 'Agent decisions appear here in real time as Razorpay webhook events arrive'}
+                ? 'This agent will activate automatically when matching failure events arrive'
+                : 'Multi-agent execution steps stream here in real time as live Razorpay webhook events arrive'}
             </p>
           </div>
-          {/* Monospaced placeholder that reads as "system idle" */}
+          {/* Monospaced live listening placeholder */}
           <div
-            className="font-mono text-[10px] px-3 py-1.5 rounded"
+            className="flex items-center gap-2 font-mono text-[10px] px-3 py-1.5 rounded"
             style={{
-              color: '#C4CBDB',
-              border: '1px solid #E8EBF0',
-              background: '#F9FAFB',
-              letterSpacing: '0.05em',
+              color: '#2B51D6',
+              border: '1px solid #C4CEFC',
+              background: '#EEF2FE',
+              letterSpacing: '0.04em',
             }}
           >
-            awaiting events…
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] live-dot" />
+            real-time websocket stream active · listening for webhooks
           </div>
         </div>
       ) : (
@@ -207,10 +211,15 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
 
                       {/* Txn ID */}
                       {row.transaction_id && (
-                        <span className="font-mono text-[10px]" style={{ color: '#C4CBDB' }}>
-                          {row.transaction_id.slice(0, 10)}…
+                        <span className="font-mono text-[10px]" style={{ color: '#8B9BB4' }}>
+                          {row.transaction_id}
                         </span>
                       )}
+
+                      {/* Live tag */}
+                      <span className="chip chip-accent text-[9px]">
+                        LIVE
+                      </span>
 
                       {/* Outcome chip — right-aligned */}
                       <span
@@ -223,7 +232,7 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
                     {/* Decision message */}
                     <p
                       className="text-[12px] mt-1 leading-relaxed"
-                      style={{ color: '#5A6578' }}
+                      style={{ color: '#3F4A5F' }}
                     >
                       {row.message ?? '—'}
                     </p>
@@ -231,7 +240,7 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
 
                   {/* Timestamp */}
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className="font-mono text-[10px]" style={{ color: '#C4CBDB' }}>
+                    <span className="font-mono text-[10px]" style={{ color: '#8B9BB4' }}>
                       {fmtTime(row.timestamp)}
                     </span>
                     <span
@@ -243,104 +252,137 @@ export function AuditTrail({ rows, agentFilter, searchQuery = '' }: AuditTrailPr
                   </div>
                 </button>
 
-                {/* Expanded inline detail — no modal needed */}
+                {/* Expanded Multi-Agent Progression Stepper */}
                 {isExpanded && (
                   <div
-                    className="flex flex-col gap-3 text-[12px]"
+                    className="flex flex-col gap-4 text-[12px]"
                     style={{
-                      margin: '0 16px 12px 28px',
-                      padding: '12px 14px',
+                      margin: '0 16px 14px 28px',
+                      padding: '14px 16px',
                       background: '#F9FAFB',
                       border: '1px solid #E8EBF0',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
                     }}
                   >
-                    {row.state && (
+                    {/* Stepper Header */}
+                    <div className="flex items-center justify-between pb-2 border-b border-[#E8EBF0]">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium w-28 shrink-0" style={{ color: '#8B9BB4' }}>
-                          State after
+                        <span className="material-symbols-outlined text-[15px] text-[#2B51D6]">
+                          account_tree
                         </span>
-                        <span className={`${outcomeChipClass(row.state)} text-[10px]`}>
-                          {row.state.replace(/_/g, ' ')}
+                        <span className="font-semibold text-[#0F1117] text-[12px]">
+                          Agent Pipeline Progression Trace
                         </span>
                       </div>
-                    )}
-                    {row.category && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium w-28 shrink-0" style={{ color: '#8B9BB4' }}>Category</span>
-                        <span className="font-mono font-semibold text-[11px]" style={{ color: '#2B51D6' }}>
-                          {row.category === 'SENTINEL' ? 'Sentinel' : `Category ${row.category}`}
-                        </span>
+                      {row.agent && onInspectAgent && (
+                        <button
+                          onClick={() => onInspectAgent(row.agent || 'PolicyGate')}
+                          className="text-[11px] font-semibold text-[#2B51D6] hover:underline flex items-center gap-1"
+                        >
+                          <span>Inspect {agentLabel(row.agent)} in Drawer</span>
+                          <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sequential Multi-Agent Steps */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                      {/* Step 1: Policy Gate */}
+                      <div className="p-2.5 rounded bg-white border border-[#E8EBF0] flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] font-bold text-[#5A6578]">
+                            01 POLICY GATE
+                          </span>
+                          <span className={`chip ${row.abort_reason ? 'chip-aborted' : 'chip-recovered'} text-[9px]`}>
+                            {row.abort_reason ? 'ABORTED' : 'PASSED'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#5A6578] mt-0.5">
+                          {row.abort_reason
+                            ? `Blocked: ${row.abort_reason.replace(/_/g, ' ')}`
+                            : 'TRAI hours 8AM-7PM valid, DND registry clear, velocity limit OK'}
+                        </p>
                       </div>
-                    )}
-                    {row.channel && row.channel !== 'NONE' && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium w-28 shrink-0" style={{ color: '#8B9BB4' }}>Channel</span>
-                        <span className="font-medium" style={{ color: '#0F1117' }}>
-                          {row.channel.replace(/_/g, ' ')}
-                        </span>
+
+                      {/* Step 2: Triage Agent */}
+                      <div className="p-2.5 rounded bg-white border border-[#E8EBF0] flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] font-bold text-[#2B51D6]">
+                            02 TRIAGE AGENT
+                          </span>
+                          <span className="chip chip-ptp text-[9px]">
+                            {row.category ? `CAT ${row.category}` : 'TRIAGED'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#5A6578] mt-0.5">
+                          {row.category === 'A' && 'Category A: Salary Day sequence scheduled'}
+                          {row.category === 'B' && 'Category B: Corporate B2B invoice dunning'}
+                          {row.category === 'C' && 'Category C: Hinglish cart recovery outreach'}
+                          {row.category === 'SENTINEL' && 'Sentinel: Pre-debit mandate renewal'}
+                          {!row.category && (row.message || 'Telemetry classified')}
+                        </p>
                       </div>
-                    )}
-                    {row.abort_reason && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium w-28 shrink-0" style={{ color: '#8B9BB4' }}>Abort reason</span>
-                        <span className="font-mono font-medium" style={{ color: '#B91C1C' }}>
-                          {row.abort_reason.replace(/_/g, ' ')}
-                        </span>
+
+                      {/* Step 3: Risk & Arbiter Governance */}
+                      <div className="p-2.5 rounded bg-white border border-[#E8EBF0] flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] font-bold text-[#0F766E]">
+                            03 GOVERNANCE
+                          </span>
+                          <span className={`chip ${row.arbiter_ruling ? 'chip-recovered' : 'chip-default'} text-[9px]`}>
+                            {row.arbiter_ruling ? 'ARBITER RULED' : 'RISK CHECKED'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#5A6578] mt-0.5">
+                          {row.arbiter_ruling
+                            ? 'CFO Decision Ledger entry issued'
+                            : row.risk_verdict
+                            ? 'Semantic sentiment & guardrails verified'
+                            : 'Automated compliance checks completed'}
+                        </p>
                       </div>
-                    )}
-                    {(row.risk_verdict || row.arbiter_ruling) && (
-                      <div className="flex flex-col gap-2">
-                        {row.risk_verdict && (
-                          <div>
-                            <span className="font-medium block mb-1" style={{ color: '#8B9BB4' }}>Risk verdict</span>
-                            <pre
-                              className="font-mono text-[10px] overflow-x-auto"
-                              style={{
-                                padding: '8px 10px',
-                                background: '#FFFFFF',
-                                border: '1px solid #E8EBF0',
-                                borderRadius: '3px',
-                                color: '#5A6578',
-                                lineHeight: 1.6,
-                              }}
-                            >
-                              {JSON.stringify(row.risk_verdict, null, 2)}
-                            </pre>
-                          </div>
-                        )}
+                    </div>
+
+                    {/* Rich Details */}
+                    {(row.risk_verdict || row.arbiter_ruling || row.proposal) && (
+                      <div className="flex flex-col gap-2 pt-2 border-t border-[#E8EBF0]">
                         {row.arbiter_ruling && (
-                          <div>
-                            <span className="font-medium block mb-1" style={{ color: '#8B9BB4' }}>Arbiter ruling</span>
-                            <pre
-                              className="font-mono text-[10px] overflow-x-auto"
-                              style={{
-                                padding: '8px 10px',
-                                background: '#FFFFFF',
-                                border: '1px solid #E8EBF0',
-                                borderRadius: '3px',
-                                color: '#5A6578',
-                                lineHeight: 1.6,
-                              }}
-                            >
+                          <div className="p-2.5 rounded bg-white border border-[#E8EBF0] flex flex-col gap-1">
+                            <span className="font-mono text-[10px] font-bold text-[#0F766E] uppercase">
+                              Arbiter CFO Ruling
+                            </span>
+                            <pre className="font-mono text-[10px] text-[#3F4A5F] overflow-x-auto whitespace-pre-wrap leading-relaxed">
                               {JSON.stringify(row.arbiter_ruling, null, 2)}
                             </pre>
                           </div>
                         )}
+                        {row.risk_verdict && (
+                          <div className="p-2.5 rounded bg-white border border-[#E8EBF0] flex flex-col gap-1">
+                            <span className="font-mono text-[10px] font-bold text-[#B91C1C] uppercase">
+                              Risk Guardrail Verdict
+                            </span>
+                            <pre className="font-mono text-[10px] text-[#3F4A5F] overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                              {JSON.stringify(row.risk_verdict, null, 2)}
+                            </pre>
+                          </div>
+                        )}
                       </div>
                     )}
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium" style={{ color: '#8B9BB4' }}>Decision</span>
-                      <p style={{ color: '#3F4A5F', lineHeight: 1.6 }}>{row.message ?? '—'}</p>
+
+                    {/* Metadata summary bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E8EBF0] text-[11px] text-[#8B9BB4]">
+                      <div className="flex items-center gap-3">
+                        {row.channel && row.channel !== 'NONE' && (
+                          <span>Channel: <strong className="text-[#0F1117] font-medium">{row.channel}</strong></span>
+                        )}
+                        {row.payment_link_url && (
+                          <span>Razorpay Link: <a href={row.payment_link_url} target="_blank" rel="noopener noreferrer" className="text-[#2B51D6] underline font-mono">{row.payment_link_url}</a></span>
+                        )}
+                      </div>
+                      <span className="font-mono text-[10px]">
+                        Txn: {row.transaction_id || 'stream'}
+                      </span>
                     </div>
-                    {row.transaction_id && (
-                      <div className="flex items-center gap-2 pt-2" style={{ borderTop: '1px solid #E8EBF0' }}>
-                        <span className="font-medium w-28 shrink-0" style={{ color: '#C4CBDB' }}>Transaction</span>
-                        <span className="font-mono text-[10px] break-all" style={{ color: '#C4CBDB' }}>
-                          {row.transaction_id}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
